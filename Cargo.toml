@@ -1,0 +1,8 @@
+[package]
+name = "gb_synth"
+version = "0.1.0"
+authors = ["George Roger <georger@xmos.com>"]
+
+[dependencies]
+cpal = "0.8.2"
+crossbeam-deque = "0.5.1"
