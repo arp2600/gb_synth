@@ -2,10 +2,10 @@ extern crate cpal;
 extern crate crossbeam_deque;
 use cpal::EventLoop;
 use cpal::{OutputBuffer, StreamData, UnknownTypeOutputBuffer};
-use std::io::{self, Read};
-use std::thread;
 use crossbeam_deque as deque;
 use crossbeam_deque::Stealer;
+use std::io::{self, Read};
+use std::thread;
 
 struct PulseOsc {
     frequency: u32,
