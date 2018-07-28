@@ -6,3 +6,5 @@ authors = ["George Roger <georger@xmos.com>"]
 [dependencies]
 cpal = "0.8.2"
 crossbeam-deque = "0.5.1"
+rustplotlib = "0.0.4"
+hound = "3.4.0"
