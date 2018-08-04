@@ -1,12 +1,16 @@
 extern crate cpal;
 extern crate crossbeam_deque;
+extern crate hound;
+mod pulse;
 use cpal::EventLoop;
-use cpal::{OutputBuffer, StreamData, UnknownTypeOutputBuffer};
+use cpal::{StreamData, UnknownTypeOutputBuffer};
 use crossbeam_deque as deque;
 use crossbeam_deque::{Stealer, Worker};
 use std::cell::RefCell;
+// use std::f32::consts::PI;
+use pulse::PulseOsc;
+use std::i16;
 use std::thread;
-use std::f32::consts::PI;
 
 pub struct SynthController<'a> {
     server: RefCell<&'a mut AudioServer>,
@@ -45,34 +49,32 @@ impl AudioServer {
     }
 }
 
-struct SinOsc {
-    frequency: f32,
-    phase: f32,
-}
-
-impl SinOsc {
-    // fn tick(&mut self, buffer: &mut [f32]) {
-    //     let inc = self.frequency / 44100.0;
-    //     for sample in buffer.iter_mut() {
-    //         self.phase += inc;
-    //         *sample = (self.phase * PI).sin() * 0.1;
-    //     }
-    // }
-
-    fn tick(&mut self) -> f32 {
-        let inc = self.frequency / 44100.0;
-        self.phase += inc;
-        (self.phase * PI).sin()
-    }
-}
-
-fn wrap(v: f32, n: f32) -> f32 {
-    let v = v * (1.0 / n);
-    let v = v - v.round();
-    v * n
-}
+// struct SinOsc {
+//     frequency: f32,
+//     phase: f32,
+// }
+//
+// impl SinOsc {
+//     fn new() -> SinOsc {
+//         SinOsc { frequency: 0.0, phase: 0.0 }
+//     }
+//
+//     fn tick(&mut self) -> f32 {
+//         let inc = self.frequency / 44100.0;
+//         self.phase += inc;
+//         (self.phase * PI * 2.0).sin()
+//     }
+// }
 
 fn run_audio(stealer: Stealer<ControlAction>) {
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate: 44100,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+    let mut writer = hound::WavWriter::create("output.wav", spec).unwrap();
+
     let event_loop = EventLoop::new();
     let device = cpal::default_output_device().unwrap();
 
@@ -80,40 +82,31 @@ fn run_audio(stealer: Stealer<ControlAction>) {
         let mut formats = device.supported_output_formats().unwrap();
         formats.next().unwrap().with_max_sample_rate()
     };
+    println!("Using format {:?}", format);
 
     let stream_id = event_loop.build_output_stream(&device, &format).unwrap();
     event_loop.play_stream(stream_id);
 
-    let mut chan1 = SinOsc {
-        frequency: 440.0,
-        phase: 0.0,
-    };
+    let mut chan1 = PulseOsc::new();
+    let mut chan2 = PulseOsc::new();
+    let mut chan3 = PulseOsc::new();
+    // let mut sin = SinOsc::new();
+    // sin.frequency = 440.0;
 
-    let mut chan2 = SinOsc {
-        frequency: 440.0,
-        phase: 0.0,
-    };
-
-    let mut chan3 = SinOsc {
-        frequency: 440.0,
-        phase: 0.0,
-    };
-
+    let mut chan = 0;
     event_loop.run(move |_stream_id, stream_data| {
-        let count = match &stream_data {
-            StreamData::Output { buffer } => buffer.len(),
-            _ => panic!("something something dark side"),
-        };
+        // let count = match &stream_data {
+        //     StreamData::Output { buffer } => buffer.len(),
+        //     _ => panic!("something something dark side"),
+        // };
 
         while let Some(action) = stealer.steal() {
             match action {
-                ControlAction::SetFrequency { channel, frequency } => {
-                    match channel {
-                        1 => chan1.frequency = frequency,
-                        2 => chan2.frequency = frequency,
-                        3 => chan3.frequency = frequency,
-                        _ => (),
-                    }
+                ControlAction::SetFrequency { channel, frequency } => match channel {
+                    1 => chan1.set_frequency(frequency),
+                    2 => chan2.set_frequency(frequency),
+                    3 => chan3.set_frequency(frequency),
+                    _ => (),
                 },
             }
         }
@@ -122,11 +115,26 @@ fn run_audio(stealer: Stealer<ControlAction>) {
             StreamData::Output {
                 buffer: UnknownTypeOutputBuffer::F32(mut buffer),
             } => {
-                for v in buffer.iter_mut() {
-                    *v = (chan1.tick() + chan2.tick() + chan3.tick()) * 0.1;
+                let channels = format.channels as usize;
+                for sample in buffer.chunks_mut(channels) {
+                    let mut x = 0.0;
+                    x += chan1.tick();
+                    x += chan2.tick();
+                    // x += chan3.tick();
+                    let x = x * 0.1;
+                    for out in sample.iter_mut() {
+                        *out = x;
+                    }
+
+                    let x = x.min(1.0).max(-1.0);
+                    let amplitude = i16::MAX as f32;
+                    writer.write_sample((x * amplitude) as i16).unwrap();
                 }
+                writer.flush().unwrap();
             }
             _ => panic!("Unsupported stream data type"),
         }
+
+        chan += 1;
     });
 }
