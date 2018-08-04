@@ -4,6 +4,7 @@ pub struct PulseOsc {
     frequency: f32,
     phase_accumulator: f32,
     integrator_feedback: f32,
+    amplitude: f32,
 }
 
 impl PulseOsc {
@@ -16,11 +17,16 @@ impl PulseOsc {
             frequency,
             phase_accumulator,
             integrator_feedback,
+            amplitude: 1.0,
         }
     }
 
     pub fn set_frequency(&mut self, frequency: f32) {
         self.frequency = frequency;
+    }
+
+    pub fn set_amplitude(&mut self, amplitude: f32) {
+        self.amplitude = amplitude;
     }
 
     pub fn tick(&mut self) -> f32 {
@@ -46,7 +52,7 @@ impl PulseOsc {
             self.integrator_feedback = x;
             x
         };
-        li
+        li * self.amplitude
     }
 }
 

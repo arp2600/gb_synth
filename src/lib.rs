@@ -18,11 +18,17 @@ pub struct SynthController<'a> {
 
 enum ControlAction {
     SetFrequency { channel: u8, frequency: f32 },
+    SetAmplitude { channel: u8, amplitude: f32 },
 }
 
 impl<'a> SynthController<'a> {
     pub fn set_freq(&mut self, channel: u8, frequency: f32) {
         let action = ControlAction::SetFrequency { channel, frequency };
+        self.server.borrow_mut().worker.push(action);
+    }
+
+    pub fn set_amp(&mut self, channel: u8, amplitude: f32) {
+        let action = ControlAction::SetAmplitude { channel, amplitude };
         self.server.borrow_mut().worker.push(action);
     }
 }
@@ -106,6 +112,12 @@ fn run_audio(stealer: Stealer<ControlAction>) {
                     1 => chan1.set_frequency(frequency),
                     2 => chan2.set_frequency(frequency),
                     3 => chan3.set_frequency(frequency),
+                    _ => (),
+                },
+                ControlAction::SetAmplitude { channel, amplitude } => match channel {
+                    1 => chan1.set_amplitude(amplitude),
+                    2 => chan2.set_amplitude(amplitude),
+                    3 => chan3.set_amplitude(amplitude),
                     _ => (),
                 },
             }
