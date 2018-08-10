@@ -5,6 +5,7 @@ pub struct PulseOsc {
     phase_accumulator: f32,
     integrator_feedback: f32,
     amplitude: f32,
+    pulse_width: f32,
 }
 
 impl PulseOsc {
@@ -12,13 +13,20 @@ impl PulseOsc {
         let frequency = 440.0;
         let phase_accumulator = 0.0;
         let integrator_feedback = 0.0;
+        let amplitude = 1.0;
+        let pulse_width = 0.25;
 
         PulseOsc {
             frequency,
             phase_accumulator,
             integrator_feedback,
-            amplitude: 1.0,
+            amplitude,
+            pulse_width,
         }
+    }
+
+    pub fn set_pulse_width(&mut self, width: f32) {
+        self.pulse_width = width / 100.0;
     }
 
     pub fn set_frequency(&mut self, frequency: f32) {
@@ -35,7 +43,7 @@ impl PulseOsc {
         let (phase_1, phase_2) = {
             let p = self.phase_accumulator;
             self.phase_accumulator = wrap(p + inc, PI);
-            (p, wrap(p + PI, PI))
+            (p, wrap(p + (2.0 * PI * self.pulse_width), PI))
         };
 
         let blit_value = {

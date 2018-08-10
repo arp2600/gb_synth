@@ -19,6 +19,7 @@ pub struct SynthController<'a> {
 enum ControlAction {
     SetFrequency { channel: u8, frequency: f32 },
     SetAmplitude { channel: u8, amplitude: f32 },
+    SetPulseWidth { channel: u8, width: f32 },
 }
 
 impl<'a> SynthController<'a> {
@@ -29,6 +30,11 @@ impl<'a> SynthController<'a> {
 
     pub fn set_amp(&mut self, channel: u8, amplitude: f32) {
         let action = ControlAction::SetAmplitude { channel, amplitude };
+        self.server.borrow_mut().worker.push(action);
+    }
+
+    pub fn set_pulse_width(&mut self, channel: u8, width: f32) {
+        let action = ControlAction::SetPulseWidth { channel, width };
         self.server.borrow_mut().worker.push(action);
     }
 }
@@ -119,6 +125,11 @@ fn run_audio(stealer: Stealer<ControlAction>) {
                     2 => chan2.set_amplitude(amplitude),
                     3 => chan3.set_amplitude(amplitude),
                     _ => (),
+                },
+                ControlAction::SetPulseWidth { channel, width } => match channel {
+                    1 => chan1.set_pulse_width(width),
+                    2 => chan2.set_pulse_width(width),
+                    _ => panic!(),
                 },
             }
         }
