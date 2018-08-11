@@ -2,6 +2,7 @@ extern crate cpal;
 extern crate crossbeam_deque;
 extern crate hound;
 mod pulse;
+mod wavetable;
 use cpal::EventLoop;
 use cpal::{StreamData, UnknownTypeOutputBuffer};
 use crossbeam_deque as deque;
@@ -11,6 +12,7 @@ use std::cell::RefCell;
 use pulse::PulseOsc;
 use std::i16;
 use std::thread;
+use wavetable::WavetableOsc;
 
 pub struct SynthController<'a> {
     server: RefCell<&'a mut AudioServer>,
@@ -101,7 +103,8 @@ fn run_audio(stealer: Stealer<ControlAction>) {
 
     let mut chan1 = PulseOsc::new();
     let mut chan2 = PulseOsc::new();
-    let mut chan3 = PulseOsc::new();
+    let mut chan3 = WavetableOsc::new();
+
     // let mut sin = SinOsc::new();
     // sin.frequency = 440.0;
 
@@ -118,13 +121,13 @@ fn run_audio(stealer: Stealer<ControlAction>) {
                     1 => chan1.set_frequency(frequency),
                     2 => chan2.set_frequency(frequency),
                     3 => chan3.set_frequency(frequency),
-                    _ => (),
+                    _ => panic!(),
                 },
                 ControlAction::SetAmplitude { channel, amplitude } => match channel {
                     1 => chan1.set_amplitude(amplitude),
                     2 => chan2.set_amplitude(amplitude),
                     3 => chan3.set_amplitude(amplitude),
-                    _ => (),
+                    _ => panic!(),
                 },
                 ControlAction::SetPulseWidth { channel, width } => match channel {
                     1 => chan1.set_pulse_width(width),
@@ -143,7 +146,7 @@ fn run_audio(stealer: Stealer<ControlAction>) {
                     let mut x = 0.0;
                     x += chan1.tick();
                     x += chan2.tick();
-                    // x += chan3.tick();
+                    x += chan3.tick() * 0.5;
                     let x = x * 0.1;
                     for out in sample.iter_mut() {
                         *out = x;
