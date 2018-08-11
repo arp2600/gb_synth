@@ -35,9 +35,13 @@ impl WavetableOsc {
         self.amplitude = amplitude;
     }
 
+    pub fn set_wavetable(&mut self, index: usize, value: f32) {
+        self.table[index] = value;
+    }
+
     pub fn tick(&mut self) -> f32 {
         let table_len = self.table.len() as f32;
-        let inc = (table_len * self.frequency) / 44100.0;
+        let inc = (table_len * self.frequency * 0.5) / 44100.0;
 
         let phase = {
             let p = self.phase_accumulator;

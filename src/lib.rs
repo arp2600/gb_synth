@@ -22,6 +22,7 @@ enum ControlAction {
     SetFrequency { channel: u8, frequency: f32 },
     SetAmplitude { channel: u8, amplitude: f32 },
     SetPulseWidth { channel: u8, width: f32 },
+    SetWavetable { index: usize, value: f32 },
 }
 
 impl<'a> SynthController<'a> {
@@ -37,6 +38,11 @@ impl<'a> SynthController<'a> {
 
     pub fn set_pulse_width(&mut self, channel: u8, width: f32) {
         let action = ControlAction::SetPulseWidth { channel, width };
+        self.server.borrow_mut().worker.push(action);
+    }
+
+    pub fn set_wavetable(&mut self, index: usize, value: f32) {
+        let action = ControlAction::SetWavetable { index, value };
         self.server.borrow_mut().worker.push(action);
     }
 }
@@ -134,6 +140,9 @@ fn run_audio(stealer: Stealer<ControlAction>) {
                     2 => chan2.set_pulse_width(width),
                     _ => panic!(),
                 },
+                ControlAction::SetWavetable { index, value } => {
+                    chan3.set_wavetable(index, value);
+                }
             }
         }
 
