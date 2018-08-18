@@ -1,6 +1,9 @@
 extern crate cpal;
 extern crate crossbeam_deque;
 extern crate hound;
+extern crate rand;
+mod envelope;
+mod noise;
 mod pulse;
 mod wavetable;
 use cpal::EventLoop;
@@ -9,6 +12,8 @@ use crossbeam_deque as deque;
 use crossbeam_deque::{Stealer, Worker};
 use std::cell::RefCell;
 // use std::f32::consts::PI;
+use envelope::Envelope;
+use noise::NoiseOsc;
 use pulse::PulseOsc;
 use std::i16;
 use std::thread;
@@ -19,10 +24,30 @@ pub struct SynthController<'a> {
 }
 
 enum ControlAction {
-    SetFrequency { channel: u8, frequency: f32 },
-    SetAmplitude { channel: u8, amplitude: f32 },
-    SetPulseWidth { channel: u8, width: f32 },
-    SetWavetable { index: usize, value: f32 },
+    SetFrequency {
+        channel: u8,
+        frequency: f32,
+    },
+    SetAmplitude {
+        channel: u8,
+        amplitude: f32,
+    },
+    SetPulseWidth {
+        channel: u8,
+        width: f32,
+    },
+    SetWavetable {
+        index: usize,
+        value: f32,
+    },
+    Reset {
+        channel: u8,
+    },
+    SetEnvelope {
+        channel: u8,
+        amp: f32,
+        duration: f32,
+    },
 }
 
 impl<'a> SynthController<'a> {
@@ -43,6 +68,20 @@ impl<'a> SynthController<'a> {
 
     pub fn set_wavetable(&mut self, index: usize, value: f32) {
         let action = ControlAction::SetWavetable { index, value };
+        self.server.borrow_mut().worker.push(action);
+    }
+
+    pub fn reset_channel(&mut self, channel: u8) {
+        let action = ControlAction::Reset { channel };
+        self.server.borrow_mut().worker.push(action);
+    }
+
+    pub fn set_envelope(&mut self, channel: u8, amp: f32, duration: f32) {
+        let action = ControlAction::SetEnvelope {
+            channel,
+            amp,
+            duration,
+        };
         self.server.borrow_mut().worker.push(action);
     }
 }
@@ -110,6 +149,8 @@ fn run_audio(stealer: Stealer<ControlAction>) {
     let mut chan1 = PulseOsc::new();
     let mut chan2 = PulseOsc::new();
     let mut chan3 = WavetableOsc::new();
+    let mut chan4 = NoiseOsc::new();
+    let mut chan4_envelope = Envelope::new();
 
     // let mut sin = SinOsc::new();
     // sin.frequency = 440.0;
@@ -133,6 +174,7 @@ fn run_audio(stealer: Stealer<ControlAction>) {
                     1 => chan1.set_amplitude(amplitude),
                     2 => chan2.set_amplitude(amplitude),
                     3 => chan3.set_amplitude(amplitude),
+                    4 => chan4.set_amplitude(amplitude),
                     _ => panic!(),
                 },
                 ControlAction::SetPulseWidth { channel, width } => match channel {
@@ -143,6 +185,21 @@ fn run_audio(stealer: Stealer<ControlAction>) {
                 ControlAction::SetWavetable { index, value } => {
                     chan3.set_wavetable(index, value);
                 }
+                ControlAction::Reset { channel } => match channel {
+                    4 => chan4_envelope.reset(),
+                    _ => (),
+                },
+                ControlAction::SetEnvelope {
+                    channel,
+                    amp,
+                    duration,
+                } => match channel {
+                    4 => {
+                        chan4_envelope.set_start_amp(amp);
+                        chan4_envelope.set_duration(duration);
+                    }
+                    _ => (),
+                },
             }
         }
 
@@ -156,6 +213,7 @@ fn run_audio(stealer: Stealer<ControlAction>) {
                     x += chan1.tick();
                     x += chan2.tick();
                     x += chan3.tick() * 0.5;
+                    x += chan4.tick() * chan4_envelope.tick();
                     let x = x * 0.1;
                     for out in sample.iter_mut() {
                         *out = x;
